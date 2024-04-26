@@ -1,0 +1,4 @@
+numpy
+git+https://github.com/jacazek/fasta_utils.git@main#egg=fasta_utils
+git+https://github.com/jacazek/fasta_pytorch_utils.git@main#egg=fasta_pytorch_utils
+torch
