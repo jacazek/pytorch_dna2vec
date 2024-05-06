@@ -10,11 +10,11 @@ class Dna2Vec(L.LightningModule):
         self.vocabulary = vocabulary
         self.vocabulary_size = self.vocabulary.__len__()
         self.embedding_dimension = embedding_dimension
-        self.device = device
+        self.custom_device = device
         self.embedding = torch.nn.Embedding(self.vocabulary_size, embedding_dimension,
-                                      padding_idx=self.vocabulary["pad"],  # implicit dependency on vocabulary padding
-                                      device=self.device)
-        self.linear = torch.nn.Linear(embedding_dimension, self.vocabulary_size, device=self.device)
+                                            padding_idx=self.vocabulary["pad"],  # implicit dependency on vocabulary padding
+                                            device=self.custom_device)
+        self.linear = torch.nn.Linear(embedding_dimension, self.vocabulary_size, device=self.custom_device)
         self.learning_rate = 0.01
         self.dense_optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate, fused=True)
         self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.dense_optimizer, T_max=7, eta_min=.00001)
@@ -32,12 +32,12 @@ class Dna2Vec(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         input, targets = batch
-        input = input.to(device=self.device)
-        targets = targets.to(device=self.device)
+        input = input.to(device=self.custom_device)
+        targets = targets.to(device=self.custom_device)
         self.dense_optimizer.zero_grad(set_to_none=True)
 
         # lengths should remain on cpu as all processing what needs lengths must be done on cpu
-        with torch.autocast(device_type=self.device, dtype=torch.float16):
+        with torch.autocast(device_type=self.custom_device, dtype=torch.float16):
             output = self(input)
             loss = self.criterion(output,
                              targets)
