@@ -170,7 +170,5 @@ checkpoints/
 *.pth
 *.pt
 *.pickle
-*[.fa,.fai,.gff3]
-fasta_files/
 
 trace.json
