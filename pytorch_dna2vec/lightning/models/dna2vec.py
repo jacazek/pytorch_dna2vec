@@ -1,7 +1,7 @@
 from typing import Any
 
 import torch
-import lightning as L
+import pytorch_lightning as L
 
 
 class Dna2Vec(L.LightningModule):
