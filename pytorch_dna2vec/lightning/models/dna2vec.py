@@ -2,6 +2,7 @@ from typing import Any
 
 import torch
 import pytorch_lightning as L
+import torchmetrics
 
 
 class Dna2Vec(L.LightningModule):
@@ -22,6 +23,8 @@ class Dna2Vec(L.LightningModule):
         self.scaler = torch.cuda.amp.GradScaler()
         self.criterion = torch.nn.CrossEntropyLoss()
 
+        self.accuracy = torchmetrics.classification.BinaryAccuracy()
+
     def forward(self, context):
         embeds = self.embedding(context).mean(dim=1)
         output = self.linear(embeds)
@@ -41,6 +44,7 @@ class Dna2Vec(L.LightningModule):
             output = self(input)
             loss = self.criterion(output,
                              targets)
+        self.accuracy(output, targets)
         return loss
 
         # scaler.scale(loss).backward()
