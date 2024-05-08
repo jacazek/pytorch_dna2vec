@@ -23,7 +23,7 @@ class Dna2Vec(L.LightningModule):
         self.scaler = torch.cuda.amp.GradScaler()
         self.criterion = torch.nn.CrossEntropyLoss()
 
-        self.accuracy = torchmetrics.classification.BinaryAccuracy()
+        # self.accuracy = torchmetrics.classification.BinaryAccuracy()
 
     def forward(self, context):
         embeds = self.embedding(context).mean(dim=1)
@@ -44,7 +44,7 @@ class Dna2Vec(L.LightningModule):
             output = self(input)
             loss = self.criterion(output,
                              targets)
-        self.accuracy(output, targets)
+        # self.accuracy(output, targets)
         return loss
 
         # scaler.scale(loss).backward()
