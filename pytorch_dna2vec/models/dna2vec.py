@@ -16,7 +16,6 @@ class Dna2Vec(torch.nn.Module):
         self.linear = torch.nn.Linear(embedding_dimension, self.vocabulary_size, device=self.device)
         self.default_learning_rate = 0.01
         self.optimizer = optimizer or torch.optim.Adam(self.parameters(), lr=self.default_learning_rate, fused=True)
-        self.gradient_scaler = torch.cuda.amp.GradScaler()
         self.loss_function = loss_function or torch.nn.CrossEntropyLoss()
         self.lr_scheduler = lr_scheduler or torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=7,
                                                                                        eta_min=.00001)
@@ -28,9 +27,6 @@ class Dna2Vec(torch.nn.Module):
 
     def get_optimizer(self):
         return self.optimizer
-
-    def get_gradient_scaler(self):
-        return self.gradient_scaler
 
     def get_loss_function(self):
         return self.loss_function
