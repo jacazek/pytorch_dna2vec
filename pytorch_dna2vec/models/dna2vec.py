@@ -32,4 +32,4 @@ class Dna2Vec(torch.nn.Module):
         return self.loss_function
 
     def get_learning_rate_scheduler(self):
-        return self.default_learning_rate_scheduler
+        return self.lr_scheduler
