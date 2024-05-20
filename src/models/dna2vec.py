@@ -14,7 +14,7 @@ class Dna2Vec(torch.nn.Module):
                                             # implicit dependency on vocabulary padding
                                             device=self.device)
         self.linear = torch.nn.Linear(embedding_dimension, self.vocabulary_size, device=self.device)
-        self.default_learning_rate = 0.001
+        self.default_learning_rate = 0.0003
         self.optimizer = optimizer or torch.optim.Adam(self.parameters(), lr=self.default_learning_rate, fused=True)
         self.loss_function = loss_function or torch.nn.CrossEntropyLoss()
         self.lr_scheduler = lr_scheduler or torch.optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.6)

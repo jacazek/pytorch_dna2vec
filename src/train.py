@@ -42,11 +42,15 @@ def save_model_summary(model, input_size):
 def experiment(rank, world_size):
     fasta_file_directory = os.path.join(root_directory, "data")
     fasta_file_extension = ".fa.gz"
-    train_fasta_files = [f"{fasta_file_directory}/{file}" for file in os.listdir(fasta_file_directory) if
-                   file.endswith(fasta_file_extension)][0:2]
-    validate_fasta_files = [f"{fasta_file_directory}/{file}" for file in os.listdir(fasta_file_directory) if
-                   file.endswith(fasta_file_extension)][2:4]
+    fasta_files = [f"{fasta_file_directory}/{file}" for file in os.listdir(fasta_file_directory) if
+                   file.endswith(fasta_file_extension)]
+    # validate_fasta_files = [f"{fasta_file_directory}/{file}" for file in os.listdir(fasta_file_directory) if
+    #                file.endswith(fasta_file_extension)][2:4]
     # print(train_fasta_files)
+    files_per_gpu = int(len(fasta_files) / num_devices)
+    start = rank * files_per_gpu
+    end = start + files_per_gpu
+    fasta_files = fasta_files[start:end]
 
     train_sequence_queue = Queue()
     validate_sequence_queue = Queue()
@@ -72,15 +76,17 @@ def experiment(rank, world_size):
                                device_count=num_devices)
     validate_dataloader = DataLoader(validate_dataset, batch_size, num_workers=num_workers, prefetch_factor=10, pin_memory=True)
 
+
     # torch.set_float32_matmul_precision('medium')
+    number_of_train_fasta_files_per_epoch = 1
+    number_of_validation_fasta_files_per_epoch = 1
 
-    files_per_gpu = int(len(train_fasta_files) / num_devices)
-    start = rank * files_per_gpu
-    end = start + files_per_gpu
-
-    epochs = 2
+    epochs = 3
     for epoch in range(epochs):
-        for fasta_file in train_fasta_files[start:end]:
+        train_fasta_files = fasta_files[:number_of_train_fasta_files_per_epoch]
+        fasta_files = fasta_files[number_of_train_fasta_files_per_epoch:]
+        print(f"rank: {rank}; queueing for training {epoch}: {train_fasta_files}")
+        for fasta_file in train_fasta_files:
             # print(f"device: {rank}, train files: {fasta_files[start:end]}")
             # with FastaFileReader(fasta_file) as fasta_file_reader:
             for i in range(10):
@@ -90,8 +96,10 @@ def experiment(rank, world_size):
         for i in range(num_workers):
             train_sequence_queue.put(None)
 
-        # if rank  == 0:
-        for fasta_file in validate_fasta_files[start:end]:
+        validate_fasta_files = fasta_files[:number_of_validation_fasta_files_per_epoch]
+        fasta_files = fasta_files[number_of_validation_fasta_files_per_epoch:]
+        print(f"rank: {rank}; queueing for validation {epoch}: {validate_fasta_files}")
+        for fasta_file in validate_fasta_files:
             # print(f"device: {rank}, train files: {fasta_files}")
             # with FastaFileReader(fasta_file) as fasta_file_reader:
             for i in range(10):
@@ -104,6 +112,25 @@ def experiment(rank, world_size):
     dataset.set_rank(rank)
 
     with DDPExperiment(model,"Pytorch DNA2VEC", rank=rank) as exp:
+        parameters = {
+            "epochs": epochs,
+            "number_of_devices": num_devices,
+            "number_of_workers": num_workers,
+            "vocabulary": vocab_artifact_uri,
+            "number_of_train_files_per_epoch": number_of_train_fasta_files_per_epoch,
+            "number_of_validation_files_per_epoch": number_of_validation_fasta_files_per_epoch,
+            "optimizer": type(model.optimizer).__name__,
+            "lr_initial": model.default_learning_rate,
+            "optimizer_detailed": str(model.optimizer),
+            "lr_scheduler": type(model.lr_scheduler).__name__,
+            "lr_gamma": model.lr_scheduler.gamma,
+            "loss_function": type(model.loss_function).__name__,
+            "window_size": window_size,
+            "kmer_size": kmer_size,
+            "stride": stride,
+            "batch_size": batch_size
+        }
+        mlflow.log_params(params=parameters)
         save_model_summary(model,  ( batch_size, window_size-1))
         with DDPTrainer(exp, epochs=epochs, device=device) as trainer:
             trainer.fit(dataloader, validate_dataloader)
