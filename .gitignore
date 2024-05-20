@@ -167,6 +167,8 @@ data/
 uncompressed-data/
 compressed-data/
 checkpoints/
+artifacts/
+vocab/
 *.pth
 *.pt
 *.pickle
