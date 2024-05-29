@@ -10,19 +10,20 @@ import torch.distributed as dist
 import os
 from experiment import DDPExperiment
 import torchmetrics
+from cli_args import TrainArguments
 
 
-def run(rank, world_size, fn):
-    setup(rank, world_size)
-    fn(rank, world_size)
+def run(rank, fn, args: TrainArguments):
+    setup(rank, args)
+    fn(rank, args)
     teardown()
 
 
-def setup(rank, world_size):
+def setup(rank, args: TrainArguments):
     torch.cuda.set_device(rank)
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "12355"
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+    dist.init_process_group("nccl", rank=rank, world_size=args.number_devices)
 
 
 def teardown():
@@ -30,12 +31,12 @@ def teardown():
 
 
 class DDPRunner():
-    def __init__(self, fn, devices=1):
-        self.devices = devices
+    def __init__(self, fn, args: TrainArguments):
         self.fn = fn
+        self.args = args
 
     def run(self):
-        mp.spawn(run, nprocs=self.devices, args=(self.devices, self.fn), join=True)
+        mp.spawn(run, nprocs=self.args.number_devices, args=(self.fn, self.args), join=True)
 
 
 # from torchmetrics import Accuracy
@@ -66,9 +67,11 @@ class DDPTrainer:
         self.ddp_model = DDP(self.model, device_ids=[experiment.rank])
         self.train_loss_mean = torchmetrics.aggregation.MeanMetric().to(self.experiment.rank)
         self.train_accuracy_mean = torchmetrics.aggregation.MeanMetric().to(self.experiment.rank)
-        self.train_accuracy = torchmetrics.classification.MulticlassAccuracy(num_classes=self.model.vocabulary.__len__()).to(
+        self.train_accuracy = torchmetrics.classification.MulticlassAccuracy(
+            num_classes=self.model.vocabulary.__len__()).to(
             self.experiment.rank)
-        self.validation_accuracy = torchmetrics.classification.MulticlassAccuracy(num_classes=self.model.vocabulary.__len__()).to(
+        self.validation_accuracy = torchmetrics.classification.MulticlassAccuracy(
+            num_classes=self.model.vocabulary.__len__()).to(
             self.experiment.rank)
 
     def __enter__(self):
@@ -136,7 +139,6 @@ class DDPTrainer:
             self.train_epochs(self.epochs, train_dataloader)
 
     def __validate(self, epoch, validate_dataloader):
-        self.validation_accuracy.reset()
         total_loss = 0.0
         average_loss = 0.0
         total_accuracy = 0.0
@@ -147,7 +149,6 @@ class DDPTrainer:
 
             self.ddp_model.module.eval()
             with torch.no_grad():
-
                 for batch_idx, batch in enumerate(batches_iterator):
                     input, targets = batch
                     input = input.to(device=self.device)
@@ -168,18 +169,22 @@ class DDPTrainer:
                     batches_iterator.set_postfix(batch_loss=loss.item())
             average_loss = total_loss / (batch_idx + 1.0)
             average_accuracy = total_accuracy / (batch_idx + 1.0)
-            mlflow.log_metric("loss_validate", average_loss, step=epoch+1)
-            mlflow.log_metric("accuracy_validate", average_accuracy, step=epoch+1)
+            mlflow.log_metric("loss_validate", average_loss, step=epoch + 1)
+            mlflow.log_metric("accuracy_validate", average_accuracy, step=epoch + 1)
 
             dist.barrier()
             metrics = torch.tensor([average_loss, average_accuracy], device=self.experiment.rank)
             dist.all_reduce(metrics, op=dist.ReduceOp.SUM, async_op=False)
-            mlflow.log_metric("loss_validate", metrics[0] / dist.get_world_size(), step=epoch+1)
-            mlflow.log_metric("accuracy_validate", metrics[1] / dist.get_world_size(), step=epoch+1)
+            mlflow.log_metric("loss_validate", metrics[0] / dist.get_world_size(), step=epoch + 1)
+            mlflow.log_metric("accuracy_validate", metrics[1] / dist.get_world_size(), step=epoch + 1)
 
+    def validate(self, validate_dataloader):
+        with Join([self.ddp_model]):
+            self.__validate(0, validate_dataloader)
 
     def debug(self, message):
         print(f"rank: {self.experiment.rank}; {message}")
+
     def fit(self, train_dataloader, validate_dataloader):
         for epoch in range(self.epochs):
             with Join([self.ddp_model]):

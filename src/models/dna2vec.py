@@ -3,7 +3,7 @@ import torch
 
 class Dna2Vec(torch.nn.Module):
     def __init__(self, vocabulary, embedding_dimension=32, device="cpu", optimizer=None, loss_function=None,
-                 lr_scheduler=None):
+                 lr_scheduler=None, learning_rate=0.0001):
         super(Dna2Vec, self).__init__()
         self.vocabulary = vocabulary
         self.vocabulary_size = self.vocabulary.__len__()
@@ -14,7 +14,7 @@ class Dna2Vec(torch.nn.Module):
                                             # implicit dependency on vocabulary padding
                                             device=self.device)
         self.linear = torch.nn.Linear(embedding_dimension, self.vocabulary_size, device=self.device)
-        self.default_learning_rate = 0.0003
+        self.default_learning_rate = learning_rate
         self.optimizer = optimizer or torch.optim.Adam(self.parameters(), lr=self.default_learning_rate, fused=True)
         self.loss_function = loss_function or torch.nn.CrossEntropyLoss()
         self.lr_scheduler = lr_scheduler or torch.optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.6)
