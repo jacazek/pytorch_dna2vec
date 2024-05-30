@@ -31,7 +31,7 @@ def save_model_summary(model, input_size, artifact_path):
     with open(file_name, "w") as file:
         summary_string = str(summary(model, input_size, dtypes=[torch.long]))
         file.write(summary_string)
-    mlflow.log_artifact(file_name, artifact_path=artifact_path)
+    mlflow.log_artifact(file_name, artifact_path="artifacts")
 
 
 def collate_fn(batch):

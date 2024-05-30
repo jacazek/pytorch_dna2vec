@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pytorch_dna2vec"
-version = "0.3.0"
+version = "0.4.1"
 dependencies = [
     "numpy",
     "fasta_utils @ git+https://github.com/jacazek/fasta_utils.git@main",
