@@ -1,5 +1,8 @@
 from dataclasses import dataclass
+from typing import List
 import argparse
+import subprocess
+import os
 
 
 @dataclass
@@ -14,6 +17,13 @@ class TrainArguments:
     window_size: int
     embedding_dimensions: int
     learning_rate: float
+    lr_gamma: float
+    number_train_files_per_epoch: int
+    number_validate_files_per_epoch: int
+    tags: List[str]
+
+    # keep this key last
+    command: str
 
 
 def get_arguments() -> TrainArguments:
@@ -38,6 +48,14 @@ def get_arguments() -> TrainArguments:
                         help="The number of dimensions for each embedding")
     parser.add_argument("--learning_rate", type=float, default=0.001,
                         help="The learning rate for optimizer")
+    parser.add_argument("--lr_gamma", type=float, default=0.5,
+                        help="The learning rate gamma for the scheduler")
+    parser.add_argument("--number_train_files_per_epoch", type=int, default=1,
+                        help="The number of fasta files to train per device per epoch")
+    parser.add_argument("--number_validate_files_per_epoch", type=int, default=1,
+                        help="The number of fasta files to validate per device per epoch")
+    parser.add_argument("--tags", action="append", help="Additional key:value tags to capture with the training run")
 
     args = parser.parse_args()
-    return TrainArguments(**vars(args))
+    train_arguments = TrainArguments(**vars(args), command=str(subprocess.run(["ps", "-p", f"{os.getpid()}", "-o", "args", "--no-headers"], capture_output=True, text=True).stdout))
+    return train_arguments

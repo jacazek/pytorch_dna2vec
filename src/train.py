@@ -6,6 +6,7 @@ from trainer import DDPTrainer, DDPRunner
 from experiment import DDPExperiment
 from multiprocessing import Queue, Process
 import mlflow
+import random
 
 import torch_utils
 from fasta_utils.tokenizers import KmerTokenizer
@@ -16,7 +17,6 @@ from fasta_pytorch_utils.data.FastaWindowQueuer import FastaWindowQueuer, FastaW
     FastFileIndexPair
 from torch.utils.data import DataLoader
 from cli_args import get_arguments, TrainArguments
-import subprocess
 
 script_directory = os.path.dirname(os.path.realpath(__file__))
 root_directory = os.path.abspath(os.path.join(script_directory, "../"))
@@ -73,8 +73,13 @@ def experiment(rank, train_arguments: TrainArguments):
     vocabulary = Vocab.load(artifact_path)
     # the model should not care about stuff like learning rate.  that is a training parameter
     # how do we communicate recommended optimizer settings then if the learning rate is not part of the model
+
     model = Dna2Vec(vocabulary, embedding_dimension=train_arguments.embedding_dimensions, device=device,
                     learning_rate=train_arguments.learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=train_arguments.learning_rate, fused=True)
+    lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=train_arguments.lr_gamma)
+    model.lr_scheduler = lr_scheduler
+    model.optimizer = optimizer
 
     # pull these from vocabulary metadata later
     tokenizer = KmerTokenizer(train_arguments.kmer_size, train_arguments.stride)
@@ -94,33 +99,34 @@ def experiment(rank, train_arguments: TrainArguments):
                                      prefetch_factor=10, pin_memory=True, collate_fn=collate_fn)
 
     # torch.set_float32_matmul_precision('medium')
-    number_of_train_fasta_files_per_epoch = 1
-    number_of_validation_fasta_files_per_epoch = 1
-
+    # TODO: make this data loading more robust
     for epoch in range(train_arguments.epochs):
-        train_fasta_files = fasta_files[:number_of_train_fasta_files_per_epoch]
-        fasta_files = fasta_files[number_of_train_fasta_files_per_epoch:]
+        train_fasta_files = fasta_files[:train_arguments.number_train_files_per_epoch]
+        fasta_files = fasta_files[train_arguments.number_train_files_per_epoch:]
         print(f"rank: {rank}; queueing for training {epoch}: {train_fasta_files}")
         for fasta_file in train_fasta_files:
             # print(f"device: {rank}, train files: {fasta_files[start:end]}")
             # with FastaFileReader(fasta_file) as fasta_file_reader:
             for i in range(10):
-                train_sequence_queue.put((fasta_file, i, False))
-                train_sequence_queue.put((fasta_file, i, True))
+                item = (fasta_file, i, random.random() < 0.5)
+                train_sequence_queue.put(item)
+                print(f"Epoch {epoch}: queued {item} for train")
+                # train_sequence_queue.put((fasta_file, i, True))
             # train_sequence_queue.put((fasta_file, 10))
             # train_sequence_queue.put((fasta_file, 11))
         for i in range(train_arguments.number_train_workers):
             train_sequence_queue.put(None)
 
-        validate_fasta_files = fasta_files[:number_of_validation_fasta_files_per_epoch]
-        fasta_files = fasta_files[number_of_validation_fasta_files_per_epoch:]
+        validate_fasta_files = fasta_files[:train_arguments.number_validate_files_per_epoch]
+        fasta_files = fasta_files[train_arguments.number_validate_files_per_epoch:]
         print(f"rank: {rank}; queueing for validation {epoch}: {validate_fasta_files}")
         for fasta_file in validate_fasta_files:
             # print(f"device: {rank}, train files: {fasta_files}")
             # with FastaFileReader(fasta_file) as fasta_file_reader:
             for i in range(10):
-                validate_sequence_queue.put((fasta_file, i, False))
-                validate_sequence_queue.put((fasta_file, i, True))
+                item = (fasta_file, i, random.random() < 0.5)
+                validate_sequence_queue.put(item)
+                print(f"Epoch {epoch}: queued {item} for validation")
             # validate_sequence_queue.put((fasta_file, 10))
             # validate_sequence_queue.put((fasta_file, 11))
         for i in range(train_arguments.number_validate_workers):
@@ -135,8 +141,8 @@ def experiment(rank, train_arguments: TrainArguments):
             "number_train_workers": train_arguments.number_train_workers,
             "number_validate_workers": train_arguments.number_validate_workers,
             "vocabulary": vocab_artifact_uri,
-            "number_of_train_files_per_epoch": number_of_train_fasta_files_per_epoch,
-            "number_of_validation_files_per_epoch": number_of_validation_fasta_files_per_epoch,
+            "number_of_train_files_per_epoch": train_arguments.number_train_files_per_epoch,
+            "number_of_validation_files_per_epoch": train_arguments.number_validate_files_per_epoch,
             "optimizer": type(model.optimizer).__name__,
             "lr_initial": model.default_learning_rate,
             "optimizer_detailed": str(model.optimizer),
@@ -151,9 +157,16 @@ def experiment(rank, train_arguments: TrainArguments):
         }
 
         mlflow.log_params(params=parameters)
+        additional_tags = {}
+        if train_arguments.tags is not None and len(train_arguments.tags) > 0:
+            for tag in train_arguments.tags:
+                keyValue = tag.split(":")
+                if len(keyValue) > 1:
+                    additional_tags[keyValue[0]] = keyValue[1]
         mlflow.set_tags({
-            "command": str(subprocess.run(["ps", "-p", f"{os.getpid()}", "-o", "args", "--no-headers"], capture_output=True, text=True).stdout)
-        })
+            "command": train_arguments.command
+
+        } | additional_tags)
         save_model_summary(model, (train_arguments.batch_size, train_arguments.window_size - 1))
         with DDPTrainer(exp, epochs=train_arguments.epochs, device=device) as trainer:
             # trainer.train(dataloader)
