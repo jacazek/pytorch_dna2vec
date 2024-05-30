@@ -21,6 +21,8 @@ class TrainArguments:
     number_train_files_per_epoch: int
     number_validate_files_per_epoch: int
     tags: List[str]
+    vocab_artifact_uri: str
+    artifact_directory: str
 
     # keep this key last
     command: str
@@ -56,6 +58,15 @@ def get_arguments() -> TrainArguments:
                         help="The number of fasta files to validate per device per epoch")
     parser.add_argument("--tags", action="append", help="Additional key:value tags to capture with the training run")
 
+    # vocabulary arguments
+    parser.add_argument("--vocab_artifact_uri", type=str,
+                        default="mlflow-artifacts:/2/bd867003e0ed4696ac17251250c25564/artifacts/7mer-s3-202405182143.pickle",
+                        help="The uri for vocabulary artifacts")
+    parser.add_argument("--artifact_directory", type=str, default="./artifacts",
+                        help="Directory for downloading artifacts")
+
     args = parser.parse_args()
-    train_arguments = TrainArguments(**vars(args), command=str(subprocess.run(["ps", "-p", f"{os.getpid()}", "-o", "args", "--no-headers"], capture_output=True, text=True).stdout))
+    train_arguments = TrainArguments(**vars(args), command=str(
+        subprocess.run(["ps", "-p", f"{os.getpid()}", "-o", "args", "--no-headers"], capture_output=True,
+                       text=True).stdout))
     return train_arguments

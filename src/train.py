@@ -25,18 +25,13 @@ root_directory = os.path.abspath(os.path.join(script_directory, "../"))
 mlflow.set_tracking_uri("http://localhost:8080")
 device = torch_utils.get_device()
 
-vocab_artifact_uri = "mlflow-artifacts:/2/bd867003e0ed4696ac17251250c25564/artifacts/7mer-s3-202405182143.pickle"
-artifact_name = os.path.basename(vocab_artifact_uri)
-artifact_directory = "./artifacts"
-artifact_path = os.path.join(artifact_directory, artifact_name)
 
-
-def save_model_summary(model, input_size):
-    file_name = "./artifacts/model_summary.txt"
+def save_model_summary(model, input_size, artifact_path):
+    file_name = os.path.join(artifact_path, "model_summary.txt")
     with open(file_name, "w") as file:
         summary_string = str(summary(model, input_size, dtypes=[torch.long]))
         file.write(summary_string)
-    mlflow.log_artifact(file_name, artifact_path="artifacts")
+    mlflow.log_artifact(file_name, artifact_path=artifact_path)
 
 
 def collate_fn(batch):
@@ -53,6 +48,9 @@ def collate_fn(batch):
 
 
 def experiment(rank, train_arguments: TrainArguments):
+    artifact_name = os.path.basename(train_arguments.vocab_artifact_uri)
+    artifact_path = os.path.join(train_arguments.artifact_directory, artifact_name)
+
     fasta_file_directory = os.path.join(root_directory, "data")
     fasta_file_extension = ".fa.gz"
     fasta_files = [f"{fasta_file_directory}/{file}" for file in os.listdir(fasta_file_directory) if
@@ -140,7 +138,7 @@ def experiment(rank, train_arguments: TrainArguments):
             "number_devices": train_arguments.number_devices,
             "number_train_workers": train_arguments.number_train_workers,
             "number_validate_workers": train_arguments.number_validate_workers,
-            "vocabulary": vocab_artifact_uri,
+            "vocabulary": train_arguments.vocab_artifact_uri,
             "number_of_train_files_per_epoch": train_arguments.number_train_files_per_epoch,
             "number_of_validation_files_per_epoch": train_arguments.number_validate_files_per_epoch,
             "optimizer": type(model.optimizer).__name__,
@@ -164,19 +162,17 @@ def experiment(rank, train_arguments: TrainArguments):
                 if len(keyValue) > 1:
                     additional_tags[keyValue[0]] = keyValue[1]
         mlflow.set_tags({
-            "command": train_arguments.command
-
-        } | additional_tags)
-        save_model_summary(model, (train_arguments.batch_size, train_arguments.window_size - 1))
+                            "command": train_arguments.command
+                        } | additional_tags)
+        save_model_summary(model, (train_arguments.batch_size, train_arguments.window_size - 1), train_arguments.artifact_directory)
         with DDPTrainer(exp, epochs=train_arguments.epochs, device=device) as trainer:
-            # trainer.train(dataloader)
             trainer.fit(dataloader, validate_dataloader)
-            # trainer.validate(validate_dataloader)
 
 
 def main():
     train_arguments = get_arguments()
-    mlflow.artifacts.download_artifacts(artifact_uri=vocab_artifact_uri, dst_path=artifact_directory)
+    mlflow.artifacts.download_artifacts(artifact_uri=train_arguments.vocab_artifact_uri,
+                                        dst_path=train_arguments.artifact_directory)
     ddprunner = DDPRunner(experiment, train_arguments)
     ddprunner.run()
 
