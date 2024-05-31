@@ -127,7 +127,7 @@ class DDPTrainer:
             self.train_epoch(epoch, train_dataloader)
 
     def train_epoch(self, epoch, train_dataloader):
-        with tqdm(train_dataloader, unit="batch", disable=(self.experiment.rank > 0)) as batches_iterator:
+        with tqdm(train_dataloader, unit="batch", disable=(self.experiment.rank > 0 or os.environ.get("TQDM_DISABLE") is not None)) as batches_iterator:
             batches_iterator.set_description(f"Epoch {epoch} train; rank {self.experiment.rank}")
             self.ddp_model.train()
             self.train_batches(epoch, batches_iterator)
@@ -144,7 +144,7 @@ class DDPTrainer:
         total_accuracy = 0.0
         average_accuracy = 0.0
 
-        with (tqdm(validate_dataloader, unit="batch", disable=(self.experiment.rank > 0)) as batches_iterator):
+        with (tqdm(validate_dataloader, unit="batch", disable=(self.experiment.rank > 0 or os.environ.get("TQDM_DISABLE") is not None)) as batches_iterator):
             batches_iterator.set_description(f"Epoch {epoch} validate; rank {self.experiment.rank}")
 
             self.ddp_model.module.eval()
