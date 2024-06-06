@@ -14,6 +14,7 @@ class Dna2Vec(torch.nn.Module):
                                             # implicit dependency on vocabulary padding
                                             device=self.device)
         self.lstm = torch.nn.LSTM(embedding_dimension, embedding_dimension, batch_first=True, device=self.device)
+        # self.linear1 = torch.nn.Linear(embedding_dimension, embedding_dimension, device=self.device)
         self.linear = torch.nn.Linear(embedding_dimension, self.vocabulary_size, device=self.device)
         self.default_learning_rate = learning_rate
         self.optimizer = optimizer or torch.optim.Adam(self.parameters(), lr=self.default_learning_rate, fused=True)
@@ -21,11 +22,11 @@ class Dna2Vec(torch.nn.Module):
         self.lr_scheduler = lr_scheduler or torch.optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.6)
 
     def forward(self, context):
-
+        # print(context.shape())
         embeds = self.embedding(context)
         lstm_output, _ = self.lstm(embeds)
-
-        output = self.linear(lstm_output.mean(dim=1))
+        output = torch.relu(lstm_output.mean(dim=1))
+        output = self.linear(output)
         return output
 
     def get_optimizer(self):
