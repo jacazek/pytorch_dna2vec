@@ -172,5 +172,6 @@ vocab/
 *.pth
 *.pt
 *.pickle
+**/slurm*.out
 
 trace.json

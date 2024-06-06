@@ -164,7 +164,8 @@ def experiment(rank, train_arguments: TrainArguments):
         mlflow.set_tags({
                             "command": train_arguments.command
                         } | additional_tags)
-        save_model_summary(model, (train_arguments.batch_size, train_arguments.window_size - 1), train_arguments.artifact_directory)
+        if rank == 0:
+            save_model_summary(model, (train_arguments.batch_size, train_arguments.window_size - 1), train_arguments.artifact_directory)
         with DDPTrainer(exp, epochs=train_arguments.epochs, device=device) as trainer:
             trainer.fit(dataloader, validate_dataloader)
 
