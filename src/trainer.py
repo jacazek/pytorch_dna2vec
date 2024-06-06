@@ -21,8 +21,8 @@ def run(rank, fn, args: TrainArguments):
 
 def setup(rank, args: TrainArguments):
     torch.cuda.set_device(rank)
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "12355"
+    os.environ["MASTER_ADDR"] = os.environ.get("MASTER_ADDR", "localhost")
+    os.environ["MASTER_PORT"] = os.environ.get("MASTER_PORT", "12355")
     dist.init_process_group("nccl", rank=rank, world_size=args.number_devices)
 
 
