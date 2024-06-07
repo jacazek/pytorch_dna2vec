@@ -15,6 +15,9 @@ class Dna2Vec(torch.nn.Module):
                                             device=self.device)
         self.lstm = torch.nn.LSTM(embedding_dimension, embedding_dimension, batch_first=True, device=self.device)
         # self.linear1 = torch.nn.Linear(embedding_dimension, embedding_dimension, device=self.device)
+        # encoder_layer = torch.nn.TransformerEncoderLayer(d_model=embedding_dimension, nhead=2, dim_feedforward=128, batch_first=True, device=device)
+        # self.transformer_encoder = torch.nn.TransformerEncoder(encoder_layer, num_layers=2)
+
         self.linear = torch.nn.Linear(embedding_dimension, self.vocabulary_size, device=self.device)
         self.default_learning_rate = learning_rate
         self.optimizer = optimizer or torch.optim.Adam(self.parameters(), lr=self.default_learning_rate, fused=True)
@@ -24,9 +27,13 @@ class Dna2Vec(torch.nn.Module):
     def forward(self, context):
         # print(context.shape())
         embeds = self.embedding(context)
+        # output = torch.relu(lstm_output.mean(dim=1))
+
         lstm_output, _ = self.lstm(embeds)
-        output = torch.relu(lstm_output.mean(dim=1))
-        output = self.linear(output)
+        output = self.linear(lstm_output[:, -1, :])  # Use the output of the last time step
+
+        # output = self.transformer_encoder(embeds)  # Transformer expects (S, N, E) format
+        # output = self.linear(output.mean(dim=1))  # Use the output of the last time step
         return output
 
     def get_optimizer(self):
