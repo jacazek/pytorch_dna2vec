@@ -22,7 +22,7 @@ model = load_model(model_uri, dst_path="./artifacts")
 model.to("cpu")
 
 
-with FastaFileReader("data/Zm-CML103-REFERENCE-NAM-1.0.fa.gz") as fasta_reader:
+with FastaFileReader("/home/jacob/DEV/data-science-example/data/train_data/genes.fa") as fasta_reader:
     for header, sequence in fasta_reader.read_at_index(0):
         for context, target in window_streamer.get_windows(sequence):
             context = torch.tensor([context])

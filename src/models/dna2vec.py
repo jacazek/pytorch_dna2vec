@@ -13,10 +13,11 @@ class Dna2Vec(torch.nn.Module):
                                             padding_idx=self.vocabulary["pad"],
                                             # implicit dependency on vocabulary padding
                                             device=self.device)
-        self.lstm = torch.nn.LSTM(embedding_dimension, embedding_dimension, batch_first=True, device=self.device)
         # self.linear1 = torch.nn.Linear(embedding_dimension, embedding_dimension, device=self.device)
-        # encoder_layer = torch.nn.TransformerEncoderLayer(d_model=embedding_dimension, nhead=2, dim_feedforward=128, batch_first=True, device=device)
-        # self.transformer_encoder = torch.nn.TransformerEncoder(encoder_layer, num_layers=2)
+        encoder_layer = torch.nn.TransformerEncoderLayer(d_model=embedding_dimension, nhead=2, dim_feedforward=16, batch_first=True, device=device)
+        self.position_embedding = torch.nn.Embedding(100, embedding_dimension, device=device)
+        self.transformer_encoder = torch.nn.TransformerEncoder(encoder_layer, num_layers=1)
+        self.layer_norm = torch.nn.LayerNorm(embedding_dimension, device=device)
 
         self.linear = torch.nn.Linear(embedding_dimension, self.vocabulary_size, device=self.device)
         self.default_learning_rate = learning_rate
@@ -26,14 +27,14 @@ class Dna2Vec(torch.nn.Module):
 
     def forward(self, context):
         # print(context.shape())
+        sequence_length = context.size(1)
+        position_ids = torch.arange(sequence_length, dtype=torch.long, device=self.device).unsqueeze(0)
         embeds = self.embedding(context)
-        # output = torch.relu(lstm_output.mean(dim=1))
+        position_embeds = self.position_embedding(position_ids)
+        embeds = self.layer_norm(embeds + position_embeds)
 
-        lstm_output, _ = self.lstm(embeds)
-        output = self.linear(lstm_output[:, -1, :])  # Use the output of the last time step
-
-        # output = self.transformer_encoder(embeds)  # Transformer expects (S, N, E) format
-        # output = self.linear(output.mean(dim=1))  # Use the output of the last time step
+        output = self.transformer_encoder(embeds)  # Transformer expects (S, N, E) format
+        output = self.linear(output.mean(dim=1))  # Use the output of the last time step
         return output
 
     def get_optimizer(self):
