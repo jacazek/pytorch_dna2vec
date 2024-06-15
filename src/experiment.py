@@ -17,5 +17,7 @@ class DDPExperiment:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.rank == 0:
+            scripted_model = torch.jit.script(self.model)
             ml_pytorch.log_model(self.model, "model")
+            ml_pytorch.log_model(scripted_model, "scripted_model")
         self.mlflow_context.__exit__(exc_type, exc_val, exc_tb)
