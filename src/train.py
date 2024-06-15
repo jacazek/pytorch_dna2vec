@@ -72,8 +72,8 @@ def experiment(rank, train_arguments: TrainArguments):
     # the model should not care about stuff like learning rate.  that is a training parameter
     # how do we communicate recommended optimizer settings then if the learning rate is not part of the model
 
-    model = Dna2Vec(vocabulary, embedding_dimension=train_arguments.embedding_dimensions, device=device,
-                    learning_rate=train_arguments.learning_rate)
+    model = Dna2Vec(vocabulary, embedding_dimension=train_arguments.embedding_dimensions,
+                    learning_rate=train_arguments.learning_rate).to(device=device)
     optimizer = torch.optim.Adam(model.parameters(), lr=train_arguments.learning_rate, fused=True)
     lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=train_arguments.lr_gamma)
     model.lr_scheduler = lr_scheduler

@@ -8,32 +8,28 @@ class Dna2Vec(torch.nn.Module):
         self.vocabulary = vocabulary
         self.vocabulary_size = self.vocabulary.__len__()
         self.embedding_dimension = embedding_dimension
-        self.device = device
         self.embedding = torch.nn.Embedding(self.vocabulary_size, embedding_dimension,
-                                            padding_idx=self.vocabulary["pad"],
-                                            # implicit dependency on vocabulary padding
-                                            device=self.device)
-        # self.linear1 = torch.nn.Linear(embedding_dimension, embedding_dimension, device=self.device)
-        encoder_layer = torch.nn.TransformerEncoderLayer(d_model=embedding_dimension, nhead=2, dim_feedforward=16, batch_first=True, device=device)
-        self.position_embedding = torch.nn.Embedding(100, embedding_dimension, device=device)
+                                            padding_idx=self.vocabulary["pad"])
+        encoder_layer = torch.nn.TransformerEncoderLayer(d_model=embedding_dimension, nhead=2, dim_feedforward=4*embedding_dimension, batch_first=True)
+        self.position_embedding = torch.nn.Embedding(100, embedding_dimension)
         self.transformer_encoder = torch.nn.TransformerEncoder(encoder_layer, num_layers=1)
-        self.layer_norm = torch.nn.LayerNorm(embedding_dimension, device=device)
+        self.layer_norm = torch.nn.LayerNorm(embedding_dimension)
 
-        self.linear = torch.nn.Linear(embedding_dimension, self.vocabulary_size, device=self.device)
+        self.linear = torch.nn.Linear(embedding_dimension, self.vocabulary_size)
         self.default_learning_rate = learning_rate
         self.optimizer = optimizer or torch.optim.Adam(self.parameters(), lr=self.default_learning_rate, fused=True)
         self.loss_function = loss_function or torch.nn.CrossEntropyLoss()
         self.lr_scheduler = lr_scheduler or torch.optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.6)
 
     def forward(self, context):
-        # print(context.shape())
+        # device = next(self.parameters()).device
         sequence_length = context.size(1)
-        position_ids = torch.arange(sequence_length, dtype=torch.long, device=self.device).unsqueeze(0)
+        position_ids = torch.arange(sequence_length, dtype=torch.long, device=context.device).unsqueeze(0)
         embeds = self.embedding(context)
         position_embeds = self.position_embedding(position_ids)
         embeds = self.layer_norm(embeds + position_embeds)
 
-        output = self.transformer_encoder(embeds)  # Transformer expects (S, N, E) format
+        output = self.transformer_encoder(embeds)
         output = self.linear(output.mean(dim=1))  # Use the output of the last time step
         return output
 
