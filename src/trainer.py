@@ -90,7 +90,7 @@ class DDPTrainer:
             input = input.to(device=self.device)
             targets = targets.to(device=self.device)
             # lengths should remain on cpu as all processing what needs lengths must be done on cpu
-            with torch.autocast(device_type=self.device, dtype=torch.float16):
+            with torch.autocast(device_type=input.device.type, dtype=torch.float16):
                 output = self.ddp_model(input)
                 loss = self.loss_function(output, targets)
 
@@ -154,7 +154,7 @@ class DDPTrainer:
                     input = input.to(device=self.device)
                     targets = targets.to(device=self.device)
                     # lengths should remain on cpu as all processing what needs lengths must be done on cpu
-                    with torch.autocast(device_type=self.device, dtype=torch.float16):
+                    with torch.autocast(device_type=input.device.type, dtype=torch.float16):
                         output = self.ddp_model.module(input)
                         loss = self.loss_function(output, targets)
 

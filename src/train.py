@@ -72,8 +72,9 @@ def experiment(rank, train_arguments: TrainArguments):
     # the model should not care about stuff like learning rate.  that is a training parameter
     # how do we communicate recommended optimizer settings then if the learning rate is not part of the model
 
-    model = Dna2Vec(vocabulary, embedding_dimension=train_arguments.embedding_dimensions, device=device,
+    model = Dna2Vec(vocabulary, embedding_dimension=train_arguments.embedding_dimensions,
                     learning_rate=train_arguments.learning_rate)
+    model.to(rank)
     optimizer = torch.optim.Adam(model.parameters(), lr=train_arguments.learning_rate, fused=True)
     lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=train_arguments.lr_gamma)
     model.lr_scheduler = lr_scheduler
@@ -85,13 +86,13 @@ def experiment(rank, train_arguments: TrainArguments):
 
     streaming_embedding = StreamingEmbedding(vocabulary, tokenizer, train_arguments.window_size)
     # preprocessing_embedding = PreprocessEmbedding(vocabulary, tokenizer, window_size)
-    dataset = FastaFileQueueDataset(train_sequence_queue, embedding_strategy=streaming_embedding, device=device)
+    dataset = FastaFileQueueDataset(train_sequence_queue, embedding_strategy=streaming_embedding, device=rank)
     dataloader = DataLoader(dataset, train_arguments.batch_size, num_workers=train_arguments.number_train_workers,
                             prefetch_factor=10,
                             pin_memory=True, collate_fn=collate_fn)
 
     validate_dataset = FastaFileQueueDataset(validate_sequence_queue, embedding_strategy=streaming_embedding,
-                                             device=device)
+                                             device=rank)
     validate_dataloader = DataLoader(validate_dataset, train_arguments.batch_size,
                                      num_workers=train_arguments.number_validate_workers,
                                      prefetch_factor=10, pin_memory=True, collate_fn=collate_fn)
@@ -166,7 +167,7 @@ def experiment(rank, train_arguments: TrainArguments):
                         } | additional_tags)
         if rank == 0:
             save_model_summary(model, (train_arguments.batch_size, train_arguments.window_size - 1), train_arguments.artifact_directory)
-        with DDPTrainer(exp, epochs=train_arguments.epochs, device=device) as trainer:
+        with DDPTrainer(exp, epochs=train_arguments.epochs, device=rank) as trainer:
             trainer.fit(dataloader, validate_dataloader)
 
 

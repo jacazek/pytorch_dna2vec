@@ -8,17 +8,10 @@ class Dna2Vec(torch.nn.Module):
         self.vocabulary = vocabulary
         self.vocabulary_size = self.vocabulary.__len__()
         self.embedding_dimension = embedding_dimension
-        self.device = device
         self.embedding = torch.nn.Embedding(self.vocabulary_size, embedding_dimension,
-                                            padding_idx=self.vocabulary["pad"],
-                                            # implicit dependency on vocabulary padding
-                                            device=self.device)
-        self.lstm = torch.nn.LSTM(embedding_dimension, embedding_dimension, batch_first=True, device=self.device)
-        # self.linear1 = torch.nn.Linear(embedding_dimension, embedding_dimension, device=self.device)
-        # encoder_layer = torch.nn.TransformerEncoderLayer(d_model=embedding_dimension, nhead=2, dim_feedforward=128, batch_first=True, device=device)
-        # self.transformer_encoder = torch.nn.TransformerEncoder(encoder_layer, num_layers=2)
-
-        self.linear = torch.nn.Linear(embedding_dimension, self.vocabulary_size, device=self.device)
+                                            padding_idx=self.vocabulary["pad"])
+        self.lstm = torch.nn.LSTM(embedding_dimension, embedding_dimension, batch_first=True)
+        self.linear = torch.nn.Linear(embedding_dimension, self.vocabulary_size)
         self.default_learning_rate = learning_rate
         self.optimizer = optimizer or torch.optim.Adam(self.parameters(), lr=self.default_learning_rate, fused=True)
         self.loss_function = loss_function or torch.nn.CrossEntropyLoss()
@@ -32,8 +25,6 @@ class Dna2Vec(torch.nn.Module):
         lstm_output, _ = self.lstm(embeds)
         output = self.linear(lstm_output[:, -1, :])  # Use the output of the last time step
 
-        # output = self.transformer_encoder(embeds)  # Transformer expects (S, N, E) format
-        # output = self.linear(output.mean(dim=1))  # Use the output of the last time step
         return output
 
     def get_optimizer(self):
